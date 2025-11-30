@@ -1,0 +1,53 @@
+{
+    "actorSpecification": 1,
+    "fields": {},
+    "views": {
+        "overview": {
+            "title": "Overview",
+            "transformation": {
+                "fields": ["uid", "name", "user", "viewerUrl", "publishedAt", "likeCount", "viewCount", "isDownloadable", "license"]
+            },
+            "display": {
+                "component": "table",
+                "properties": {
+                    "uid": {
+                        "label": "UID",
+                        "format": "text"
+                    },
+                    "name": {
+                        "label": "Name",
+                        "format": "text"
+                    },
+                    "user": {
+                        "label": "User",
+                        "format": "object"
+                    },
+                    "viewerUrl": {
+                        "label": "Viewer URL",
+                        "format": "link"
+                    },
+                    "publishedAt": {
+                        "label": "Published At",
+                        "format": "date"
+                    },
+                    "likeCount": {
+                        "label": "Likes",
+                        "format": "number"
+                    },
+                    "viewCount": {
+                        "label": "Views",
+                        "format": "number"
+                    },
+                    "isDownloadable": {
+                        "label": "Downloadable",
+                        "format": "boolean"
+                    },
+                    "license": {
+                        "label": "License",
+                        "format": "text"
+                    }
+                }
+            }
+        }
+    }
+}
