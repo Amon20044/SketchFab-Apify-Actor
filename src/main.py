@@ -1,22 +1,26 @@
 """
-🚀 Sketchfab Model Search Actor - AI-Powered with LangGraph
+🚀 Sketchfab Ultimate Search Actor - AI-Powered with LangGraph
 
-This Actor searches for 3D models on Sketchfab using either:
-1. Manual filters (useAI=false) - Direct API query with provided parameters
-2. AI-powered NLP (useAI=true) - Natural language converted to search params via LangGraph
+This Actor searches for 3D models on Sketchfab using the BEST COMBINED STRATEGY:
+1. **Query (q)** - SEO-optimized concise search keywords
+2. **Tags** - Precise tags matching how users save models  
+3. **Categories** - Auto-detected category slugs for filtering
+4. **Pagination** - Full cursor-based pagination support (next/previous)
 
 Features:
 - LangGraph state machine for intelligent routing
-- Google Gemini integration for NLP
-- Conditional execution based on useAI flag
+- Google Gemini converts LONG user text → concise SEO query + smart tags
+- Cursor-based pagination (count, cursor params)
+- Default downloadable=true and smart defaults
 - Comprehensive Sketchfab API integration
 """
 
 from __future__ import annotations
 
 import os
+import re
+from urllib.parse import urlparse, parse_qs
 from typing import TypedDict, Literal, Any, Optional
-from dataclasses import dataclass, field
 
 from apify import Actor
 from httpx import AsyncClient
@@ -36,15 +40,14 @@ from langchain_core.output_parsers import JsonOutputParser
 # =============================================================================
 
 class SketchfabSearchParams(BaseModel):
-    """Structured search parameters for Sketchfab API"""
-    # Core search
-    q: str = Field(default="", description="Main search keywords (2-6 words)")
-    user: Optional[str] = Field(default=None, description="Sketchfab username")
-    tags: list[str] = Field(default_factory=list, description="Tag slugs")
+    """Structured search parameters for Sketchfab API - ULTIMATE COMBINED STRATEGY"""
+    # Core search - COMBINED: query + tags + categories
+    q: str = Field(default="", description="SEO-optimized search query (2-5 words, concise)")
+    tags: list[str] = Field(default_factory=list, description="Tag slugs for precise filtering")
     categories: list[str] = Field(default_factory=list, description="Category slugs")
     
     # Quality & type filters
-    downloadable: Optional[bool] = Field(default=None, description="Only downloadable models")
+    downloadable: Optional[bool] = Field(default=True, description="Only downloadable models - DEFAULT TRUE")
     animated: Optional[bool] = Field(default=None, description="Only animated models")
     rigged: Optional[bool] = Field(default=None, description="Only rigged models")
     staffpicked: Optional[bool] = Field(default=None, description="Staff-picked only")
@@ -58,21 +61,10 @@ class SketchfabSearchParams(BaseModel):
     # Geometry constraints
     min_face_count: Optional[int] = Field(default=None, description="Minimum polygon faces")
     max_face_count: Optional[int] = Field(default=None, description="Maximum polygon faces")
-    max_uv_layer_count: Optional[int] = Field(default=None, description="Max UV layers")
-    
-    # Archive constraints
-    available_archive_type: Optional[str] = Field(default=None, description="Archive type")
-    archives_max_size: Optional[int] = Field(default=None, description="Max archive size in bytes")
-    archives_max_face_count: Optional[int] = Field(default=None, description="Max faces in archive")
-    archives_max_vertex_count: Optional[int] = Field(default=None, description="Max vertices in archive")
-    archives_max_texture_count: Optional[int] = Field(default=None, description="Max texture count")
-    archives_texture_max_resolution: Optional[int] = Field(default=None, description="Max texture resolution")
-    archives_flavours: Optional[bool] = Field(default=None, description="All texture resolutions")
     
     # Sorting & filtering
     sort_by: Optional[str] = Field(default=None, description="Sort field")
     date: Optional[int] = Field(default=None, description="Last X days")
-    collection: Optional[str] = Field(default=None, description="Collection UID")
 
 
 # =============================================================================
@@ -86,129 +78,143 @@ class GraphState(TypedDict):
     natural_query: str
     use_ai: bool
     
+    # Pagination
+    cursor: Optional[str]  # Cursor for pagination
+    count: int             # Items per page (default 24)
+    
     # Processing
     search_params: dict
     route: str
     
     # Output
     results: list
+    pagination: dict  # next, previous URLs + cursors
     error: Optional[str]
     metadata: dict
 
 
 # =============================================================================
-# 🎯 SYSTEM PROMPT FOR NLP CONVERSION
+# 🎯 SYSTEM PROMPT - ULTIMATE SEARCH OPTIMIZATION
 # =============================================================================
 
-SEARCH_SYSTEM_PROMPT = """You are an expert 3D model search assistant for Sketchfab. Convert any natural language search query into precise, structured Sketchfab search parameters.
+SEARCH_SYSTEM_PROMPT = """You are an EXPERT Sketchfab SEO search optimizer. Your job is to convert ANY user text (even long paragraphs) into the PERFECT search parameters that will find exactly what they want.
 
-IMPORTANT: All fields except "q" MUST be returned as SLUGS (lowercase, hyphens). 
-Only "q" stays human-readable text. Everything else must match the API slug format.
+🎯 YOUR MISSION:
+1. **Extract a CONCISE SEO query (q)** - 2-5 words MAX that Sketchfab search will understand
+2. **Generate PRECISE tags** - 2-6 tags that match how artists TAG their models
+3. **Auto-detect category** - ONLY if clearly detectable, otherwise omit
 
-Return ONLY valid parameters as a JSON object. If a value is not relevant, omit it.
-
----------------------------------------------------
-## VALID PARAMETERS (STRICT, SLUG OUTPUT)
----------------------------------------------------
-
-### Core Search
-- q (string, normal text, not slugified) - REQUIRED, 2-6 words max
-- user (string, slugified)
-- tags (array[string], slugs)
-- categories (array[string], slugs ONLY):
-  - animals-pets
-  - architecture
-  - art-abstract
-  - cars-vehicles
-  - characters-creatures
-  - cultural-heritage-history
-  - electronics-gadgets
-  - fashion-style
-  - food-drink
-  - furniture-home
-  - music
-  - nature-plants
-  - news-politics
-  - people
-  - places-travel
-  - science-technology
-  - sports-fitness
-  - weapons-military
-
-### Date (integer, in days)
-- "all-time" → omit date
-- "this-month" → 30
-- "this-week" → 7
-- "today" → 1
-
-### Sort By (STRICT SLUG OUTPUT)
-- relevance
-- likes
-- views
-- recent
-- publishedAt
-
-### Boolean Filters
-- downloadable (boolean) - defaults to true unless user says otherwise
-- animated (boolean)
-- rigged (boolean)
-- staffpicked (boolean)
-- sound (boolean)
-
-### Technical Specs
-- pbr_type: metalness | specular | true | false
-- file_format: obj | fbx | blend | gltf | stl | ply | dae | x3d
-- license: CC0 | CC-BY | CC-BY-SA | CC-BY-ND | CC-BY-NC | CC-BY-NC-SA | CC-BY-NC-ND
-
-License inference:
-- "no attribution" → CC0
-- "commercial use" → CC0 or CC-BY
-- "non-commercial" → CC-BY-NC
-
-### Geometry Constraints (integers)
-- min_face_count
-- max_face_count
-- max_uv_layer_count
-
-### Archive Constraints (integers)
-- archives_max_size (bytes)
-- archives_max_face_count
-- archives_max_vertex_count
-- archives_max_texture_count
-- archives_texture_max_resolution
+⚠️ CRITICAL RULES:
+- **q field**: Must be SHORT, SEO-friendly (2-5 words). Extract the CORE subject.
+- **tags**: Slugified (lowercase-hyphens), 2-6 tags covering style/purpose/type
+- **categories**: ONLY include if 100% confident. If unsure, OMIT entirely.
+- **downloadable**: ALWAYS true unless user explicitly says "preview only"
 
 ---------------------------------------------------
-## SMART RULES
+## BREAKDOWN STRATEGY FOR LONG TEXT
 ---------------------------------------------------
 
-1. Keep "q" short (2-6 words), move descriptors into tags
-2. Infer categories:
-   - "car" → cars-vehicles
-   - "gun" → weapons-military
-   - "tree" → nature-plants
-   - "robot" → science-technology
-   - "human" → characters-creatures
-3. Set downloadable=true by default unless user says "preview only"
-4. Set staffpicked=true for "best", "top quality", "curated", "featured"
-5. Set animated=true for "animation", "animated"
-6. Set rigged=true for "rig", "skeleton", "bones"
+User input: "I need a really cool futuristic sports car that looks like something from cyberpunk 2077 with neon lights and maybe some damage on it, low poly would be nice for my game project in Unity"
+
+Breakdown:
+- Core subject: "sports car" → q: "cyberpunk sports car"
+- Style: futuristic, cyberpunk, neon → tags: ["cyberpunk", "futuristic", "neon"]
+- Quality: low-poly, game → tags: ["low-poly", "game-ready"]
+- Modifiers: damaged → tags: ["damaged", "weathered"]
+- Category: cars-vehicles (100% confident)
+
+Result: q="cyberpunk sports car", tags=["cyberpunk", "low-poly", "game-ready", "neon", "futuristic"], categories=["cars-vehicles"]
+
+---------------------------------------------------
+## CATEGORY SLUGS (ONLY use if 100% confident)
+---------------------------------------------------
+- animals-pets (animals, pets, creatures from nature)
+- architecture (buildings, interiors, exteriors)
+- art-abstract (abstract art, sculptures)
+- cars-vehicles (cars, trucks, bikes, planes, boats)
+- characters-creatures (humanoids, monsters, fantasy creatures)
+- cultural-heritage-history (historical, museums, ancient)
+- electronics-gadgets (phones, computers, tech devices)
+- fashion-style (clothing, accessories, jewelry)
+- food-drink (food items, beverages)
+- furniture-home (furniture, decor, household)
+- music (instruments, music equipment)
+- nature-plants (trees, plants, rocks, terrain)
+- news-politics (news related, political)
+- people (realistic humans, portraits)
+- places-travel (landmarks, cities, landscapes)
+- science-technology (robots, sci-fi, tech)
+- sports-fitness (sports equipment, fitness)
+- weapons-military (guns, swords, military vehicles)
+
+---------------------------------------------------
+## OUTPUT FORMAT (JSON ONLY)
+---------------------------------------------------
+
+{
+  "q": "concise search query",           // 2-5 words, REQUIRED
+  "tags": ["tag1", "tag2"],              // 2-6 slugified tags
+  "categories": ["category-slug"],        // ONLY if 100% confident, else omit
+  "downloadable": true,                   // DEFAULT TRUE
+  "animated": null,                       // true if animation mentioned
+  "rigged": null,                         // true if rig/skeleton mentioned
+  "staffpicked": null,                    // true for "best quality"
+  "pbr_type": null,                       // "true" if PBR mentioned
+  "file_format": null,                    // gltf, fbx, blend, obj
+  "max_face_count": null,                 // integer if poly limit mentioned
+  "sort_by": null                         // likes, views, recent
+}
 
 ---------------------------------------------------
 ## EXAMPLES
 ---------------------------------------------------
 
-"low poly game-ready cars under 10k faces, glb"
-→ {{"q": "cars", "tags": ["low-poly", "game-ready"], "categories": ["cars-vehicles"], "file_format": "gltf", "max_face_count": 10000, "downloadable": true}}
+"i want a low poly car for my mobile game, something cartoony"
+→ {{"q": "cartoon car", "tags": ["low-poly", "cartoon", "game-ready", "mobile"], "categories": ["cars-vehicles"], "downloadable": true}}
 
-"free downloadable robots with animation, no attribution"
-→ {{"q": "robots", "categories": ["science-technology"], "downloadable": true, "animated": true, "license": "CC0"}}
+"looking for a realistic human character model with full body rig and facial expressions for animation in blender, preferably CC0 license"
+→ {{"q": "realistic human character", "tags": ["realistic", "rigged", "full-body", "facial-rig"], "categories": ["characters-creatures"], "downloadable": true, "rigged": true, "file_format": "blend", "license": "CC0"}}
 
-"best high quality characters rigged for blender"
-→ {{"q": "characters", "categories": ["characters-creatures"], "staffpicked": true, "rigged": true, "file_format": "blend", "downloadable": true}}
+"sci fi robot mech warrior"
+→ {{"q": "sci-fi mech robot", "tags": ["sci-fi", "mech", "robot", "warrior"], "categories": ["science-technology"], "downloadable": true}}
+
+"tree"
+→ {{"q": "tree", "tags": ["tree", "nature"], "categories": ["nature-plants"], "downloadable": true}}
+
+"I need some kind of medieval fantasy weapon, like a sword or axe, with magical glowing effects, high detail for a AAA game cutscene render"
+→ {{"q": "medieval fantasy weapon", "tags": ["medieval", "fantasy", "sword", "magical", "high-poly", "detailed"], "categories": ["weapons-military"], "downloadable": true, "staffpicked": true}}
 
 ---------------------------------------------------
 Return ONLY the JSON object, no markdown, no explanation.
 """
+
+
+# =============================================================================
+# 🔧 HELPER FUNCTIONS
+# =============================================================================
+
+def parse_cursor_from_url(url: str) -> Optional[str]:
+    """Extract cursor value from a Sketchfab API URL"""
+    if not url:
+        return None
+    try:
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        return params.get("cursor", [None])[0]
+    except Exception:
+        return None
+
+
+def extract_pagination_info(api_response: dict) -> dict:
+    """Extract pagination info from Sketchfab API response"""
+    return {
+        "next_url": api_response.get("next"),
+        "previous_url": api_response.get("previous"),
+        "next_cursor": parse_cursor_from_url(api_response.get("next")),
+        "previous_cursor": parse_cursor_from_url(api_response.get("previous")),
+        "has_next": api_response.get("next") is not None,
+        "has_previous": api_response.get("previous") is not None,
+    }
 
 
 # =============================================================================
@@ -224,7 +230,7 @@ def route_decision(state: GraphState) -> Literal["ai_processing", "manual_proces
 
 async def ai_processing_node(state: GraphState) -> GraphState:
     """AI Processing Node - Uses LangChain to convert natural language to search params"""
-    Actor.log.info("🤖 AI Processing: Converting natural language query...")
+    Actor.log.info("🤖 AI Processing: Converting long text → SEO query + tags...")
     
     try:
         # Get API key from environment or input
@@ -232,8 +238,11 @@ async def ai_processing_node(state: GraphState) -> GraphState:
         
         if not api_key:
             Actor.log.warning("⚠️ No Google API key found, falling back to basic extraction")
-            # Fallback: use the query as-is
-            state["search_params"] = {"q": state["natural_query"], "downloadable": True}
+            # Fallback: use first few words as query, rest as tags
+            words = state["natural_query"].lower().split()
+            q = " ".join(words[:3])
+            tags = [w.replace(" ", "-") for w in words[:5] if len(w) > 2]
+            state["search_params"] = {"q": q, "tags": tags, "downloadable": True}
             state["metadata"]["ai_used"] = False
             state["metadata"]["fallback"] = True
             return state
@@ -248,7 +257,7 @@ async def ai_processing_node(state: GraphState) -> GraphState:
         # Create prompt template
         prompt = ChatPromptTemplate.from_messages([
             ("system", SEARCH_SYSTEM_PROMPT),
-            ("human", "Convert this search query to Sketchfab parameters: \"{query}\"")
+            ("human", "Convert this to optimal Sketchfab search parameters: \"{query}\"")
         ])
         
         # JSON output parser
@@ -260,16 +269,28 @@ async def ai_processing_node(state: GraphState) -> GraphState:
         # Execute
         result = await chain.ainvoke({"query": state["natural_query"]})
         
-        Actor.log.info(f"🎯 AI-generated params: {result}")
+        # Ensure downloadable is true by default
+        if "downloadable" not in result or result["downloadable"] is None:
+            result["downloadable"] = True
+        
+        Actor.log.info(f"🎯 AI-generated params:")
+        Actor.log.info(f"   q: {result.get('q', '')}")
+        Actor.log.info(f"   tags: {result.get('tags', [])}")
+        Actor.log.info(f"   categories: {result.get('categories', [])}")
         
         state["search_params"] = result
         state["metadata"]["ai_used"] = True
         state["metadata"]["original_query"] = state["natural_query"]
+        state["metadata"]["generated_q"] = result.get("q", "")
+        state["metadata"]["generated_tags"] = result.get("tags", [])
         
     except Exception as e:
         Actor.log.error(f"❌ AI processing error: {e}")
-        # Fallback to basic search
-        state["search_params"] = {"q": state["natural_query"], "downloadable": True}
+        # Fallback to basic extraction
+        words = state["natural_query"].lower().split()
+        q = " ".join(words[:3])
+        tags = [w.replace(" ", "-") for w in words[:5] if len(w) > 2]
+        state["search_params"] = {"q": q, "tags": tags, "downloadable": True}
         state["metadata"]["ai_used"] = False
         state["metadata"]["ai_error"] = str(e)
     
@@ -281,11 +302,15 @@ async def manual_processing_node(state: GraphState) -> GraphState:
     Actor.log.info("🎛️ Manual Processing: Using provided filters...")
     
     # Extract search params from actor input (excluding control flags)
-    excluded_keys = {"useAI", "naturalQuery", "googleApiKey"}
+    excluded_keys = {"useAI", "naturalQuery", "googleApiKey", "cursor", "count"}
     search_params = {
         k: v for k, v in state["actor_input"].items() 
         if k not in excluded_keys and v is not None and v != "" and v != []
     }
+    
+    # Ensure downloadable is true by default if not specified
+    if "downloadable" not in search_params:
+        search_params["downloadable"] = True
     
     state["search_params"] = search_params
     state["metadata"]["ai_used"] = False
@@ -294,20 +319,23 @@ async def manual_processing_node(state: GraphState) -> GraphState:
 
 
 async def sketchfab_api_node(state: GraphState) -> GraphState:
-    """Sketchfab API Node - Executes the actual search"""
+    """Sketchfab API Node - Executes the search with pagination support"""
     Actor.log.info("🔍 Executing Sketchfab API search...")
     
     try:
         # Build API params
         params = {"type": "models"}
         
+        # Add search params
         for key, value in state["search_params"].items():
             if value is not None and value != "" and value != []:
-                # Handle arrays (tags, categories)
-                if isinstance(value, list):
-                    params[key] = value
-                else:
-                    params[key] = value
+                params[key] = value
+        
+        # Add pagination params
+        params["count"] = state["count"]
+        if state["cursor"]:
+            params["cursor"] = state["cursor"]
+            Actor.log.info(f"📄 Using cursor for pagination: {state['cursor']}")
         
         Actor.log.info(f"📤 API params: {params}")
         
@@ -320,16 +348,22 @@ async def sketchfab_api_node(state: GraphState) -> GraphState:
         
         results = data.get("results", [])
         
+        # Extract pagination info
+        pagination = extract_pagination_info(data)
+        
         state["results"] = results
+        state["pagination"] = pagination
         state["metadata"]["result_count"] = len(results)
         state["metadata"]["api_url"] = str(response.url)
         
         Actor.log.info(f"✅ Found {len(results)} models")
+        Actor.log.info(f"📄 Pagination: has_next={pagination['has_next']}, has_previous={pagination['has_previous']}")
         
     except Exception as e:
         Actor.log.error(f"❌ Sketchfab API error: {e}")
         state["error"] = str(e)
         state["results"] = []
+        state["pagination"] = {}
     
     return state
 
@@ -338,13 +372,16 @@ async def output_node(state: GraphState) -> GraphState:
     """Output Node - Pushes results to Apify dataset"""
     Actor.log.info("💾 Saving results to dataset...")
     
-    # Push metadata first
+    # Push metadata first (includes pagination info)
     await Actor.push_data({
         "_metadata": True,
         "search_params": state["search_params"],
         "ai_powered": state["metadata"].get("ai_used", False),
         "original_query": state["metadata"].get("original_query"),
+        "generated_q": state["metadata"].get("generated_q"),
+        "generated_tags": state["metadata"].get("generated_tags", []),
         "result_count": state["metadata"].get("result_count", 0),
+        "pagination": state["pagination"],
         "error": state.get("error"),
     })
     
@@ -396,7 +433,7 @@ def build_search_graph() -> StateGraph:
 async def main() -> None:
     """Main entry point for the Apify Actor"""
     async with Actor:
-        Actor.log.info("🚀 Starting Sketchfab Model Search Actor (LangGraph Edition)")
+        Actor.log.info("🚀 Starting Sketchfab Ultimate Search Actor (Query + Tags + Pagination)")
         
         # Get input
         actor_input = await Actor.get_input() or {}
@@ -405,16 +442,27 @@ async def main() -> None:
         use_ai = actor_input.get("useAI", False)
         natural_query = actor_input.get("naturalQuery", "")
         
-        Actor.log.info(f"📥 Input received - useAI: {use_ai}, query: '{natural_query}'")
+        # Pagination params
+        cursor = actor_input.get("cursor")  # For pagination
+        count = actor_input.get("count", 24)  # Items per page, default 24
+        
+        Actor.log.info(f"📥 Input received:")
+        Actor.log.info(f"   useAI: {use_ai}")
+        Actor.log.info(f"   query: '{natural_query[:50]}{'...' if len(natural_query) > 50 else ''}'")
+        Actor.log.info(f"   cursor: {cursor}")
+        Actor.log.info(f"   count: {count}")
         
         # Initialize state
         initial_state: GraphState = {
             "actor_input": actor_input,
             "natural_query": natural_query,
             "use_ai": use_ai,
+            "cursor": cursor,
+            "count": count,
             "search_params": {},
             "route": "",
             "results": [],
+            "pagination": {},
             "error": None,
             "metadata": {}
         }
@@ -430,16 +478,23 @@ async def main() -> None:
         # Log summary
         result_count = final_state["metadata"].get("result_count", 0)
         ai_used = final_state["metadata"].get("ai_used", False)
+        pagination = final_state.get("pagination", {})
         
         Actor.log.info(f"""
-╔══════════════════════════════════════════════════════════════╗
-║  🎉 SEARCH COMPLETE                                          ║
-╠══════════════════════════════════════════════════════════════╣
-║  Mode: {'🤖 AI-Powered' if ai_used else '🎛️ Manual'}                                        ║
-║  Results: {result_count} models found                                  ║
-║  Query: {natural_query[:40] if natural_query else 'N/A'}{'...' if len(natural_query) > 40 else ''}
-╚══════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════╗
+║  🎉 SEARCH COMPLETE                                              ║
+╠══════════════════════════════════════════════════════════════════╣
+║  Mode: {'🤖 AI-Powered (SEO Optimized)' if ai_used else '🎛️ Manual Filters'}                     ║
+║  Results: {result_count} models found                                       ║
+║  Query (q): {final_state['search_params'].get('q', 'N/A')[:30]}
+║  Tags: {final_state['search_params'].get('tags', [])[:4]}
+║  Has Next Page: {pagination.get('has_next', False)}                                       ║
+║  Has Previous: {pagination.get('has_previous', False)}                                      ║
+╚══════════════════════════════════════════════════════════════════╝
         """)
+        
+        if pagination.get("next_cursor"):
+            Actor.log.info(f"📄 Next cursor for pagination: {pagination['next_cursor']}")
         
         if final_state.get("error"):
             Actor.log.error(f"⚠️ Error occurred: {final_state['error']}")

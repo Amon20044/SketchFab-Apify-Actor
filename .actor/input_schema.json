@@ -1,19 +1,19 @@
 {
-    "title": "Sketchfab Model Search Input",
+    "title": "Sketchfab Ultimate Search - AI + Pagination",
     "type": "object",
     "schemaVersion": 1,
     "properties": {
         "useAI": {
             "title": "🤖 Enable AI Mode",
             "type": "boolean",
-            "description": "Enable AI-powered natural language search using LangGraph + Google Gemini. When true, use 'naturalQuery' field. When false, use manual filters below.",
+            "description": "Enable AI-powered natural language search using LangGraph + Google Gemini. AI converts your long text into optimized query + tags + categories. When false, use manual filters.",
             "editor": "checkbox",
             "default": false
         },
         "naturalQuery": {
             "title": "Natural Language Query",
             "type": "string",
-            "description": "Describe what you're looking for in plain English (e.g., 'low poly game-ready cars under 10k faces with PBR textures'). Only used when 'Enable AI Mode' is checked.",
+            "description": "Describe what you're looking for in plain English - even long paragraphs! AI will convert it to SEO-optimized query + tags. Example: 'I need a futuristic cyberpunk car with neon lights, low poly for my Unity game'",
             "editor": "textarea",
             "default": ""
         },
@@ -24,17 +24,26 @@
             "editor": "textfield",
             "isSecret": true
         },
-        "q": {
-            "title": "Query Keywords",
+        "cursor": {
+            "title": "📄 Pagination Cursor",
             "type": "string",
-            "description": "Space-separated keywords (e.g., 'car vehicle 3d'). Used in manual mode.",
+            "description": "Cursor for pagination (from previous response's next_cursor). Use this to fetch next/previous pages of results.",
             "editor": "textfield",
             "default": ""
         },
-        "user": {
-            "title": "Username",
+        "count": {
+            "title": "📊 Results Per Page",
+            "type": "integer",
+            "description": "Number of results per page (default: 24, max: 24)",
+            "editor": "number",
+            "default": 24,
+            "minimum": 1,
+            "maximum": 24
+        },
+        "q": {
+            "title": "Query Keywords",
             "type": "string",
-            "description": "Search by Sketchfab username (uploader)",
+            "description": "Space-separated keywords (e.g., 'car vehicle 3d'). Used in manual mode. AI mode generates this automatically.",
             "editor": "textfield",
             "default": ""
         },
@@ -44,7 +53,7 @@
             "items": {
                 "type": "string"
             },
-            "description": "List of tag slugs (e.g., ['car', 'pbr', 'hd'])",
+            "description": "List of tag slugs (e.g., ['low-poly', 'game-ready', 'pbr']). Combined with query for best results.",
             "editor": "stringList",
             "default": []
         },
@@ -54,21 +63,16 @@
             "items": {
                 "type": "string"
             },
-            "description": "List of category slugs (e.g., ['vehicles', 'characters'])",
+            "description": "Category slugs: animals-pets, architecture, cars-vehicles, characters-creatures, electronics-gadgets, fashion-style, food-drink, furniture-home, music, nature-plants, people, places-travel, science-technology, sports-fitness, weapons-military",
             "editor": "stringList",
             "default": []
         },
-        "date": {
-            "title": "Date Filter",
-            "type": "integer",
-            "description": "Limit search to last X days (e.g., 30)",
-            "editor": "number"
-        },
         "downloadable": {
-            "title": "Downloadable",
+            "title": "Downloadable Only",
             "type": "boolean",
-            "description": "Only show models that allow downloads (true=yes, false=no, null=ignore)",
-            "editor": "checkbox"
+            "description": "Only show models that allow downloads (DEFAULT: true)",
+            "editor": "checkbox",
+            "default": true
         },
         "animated": {
             "title": "Animated",
@@ -76,130 +80,77 @@
             "description": "Only show animated models",
             "editor": "checkbox"
         },
+        "rigged": {
+            "title": "Rigged",
+            "type": "boolean",
+            "description": "Only rigged models with skeleton/bones",
+            "editor": "checkbox"
+        },
         "staffpicked": {
             "title": "Staff Picked",
             "type": "boolean",
-            "description": "Only show staff-picked models",
+            "description": "Only show staff-picked high-quality models",
             "editor": "checkbox"
         },
         "sound": {
-            "title": "Sound",
+            "title": "Has Sound",
             "type": "boolean",
             "description": "Only show models containing sound",
             "editor": "checkbox"
         },
-        "min_face_count": {
-            "title": "Min Face Count",
-            "type": "integer",
-            "description": "Minimum polygon faces (e.g., 10000)",
-            "editor": "number"
-        },
-        "max_face_count": {
-            "title": "Max Face Count",
-            "type": "integer",
-            "description": "Maximum polygon faces (e.g., 200000)",
-            "editor": "number"
-        },
         "pbr_type": {
             "title": "PBR Type",
             "type": "string",
-            "description": "PBR filtering ('metalness', 'specular', 'true', 'false')",
+            "description": "PBR filtering",
             "editor": "select",
             "enum": ["", "metalness", "specular", "true", "false"],
             "enumTitles": ["Any", "Metal/Roughness", "Spec/Gloss", "Any PBR", "Non-PBR"],
             "default": ""
         },
-        "rigged": {
-            "title": "Rigged",
-            "type": "boolean",
-            "description": "Only rigged models (true=yes, false=all)",
-            "editor": "checkbox"
-        },
-        "collection": {
-            "title": "Collection UID",
-            "type": "string",
-            "description": "Collection UID to search inside",
-            "editor": "textfield",
-            "default": ""
-        },
-        "sort_by": {
-            "title": "Sort By",
-            "type": "string",
-            "description": "Sorting ('likes', 'views', 'publishedAt', etc.)",
-            "editor": "select",
-            "enum": ["", "likes", "views", "publishedAt", "recent", "relevance"],
-            "enumTitles": ["Default", "Likes", "Views", "Published At", "Recent", "Relevance"],
-            "default": ""
-        },
         "file_format": {
             "title": "File Format",
             "type": "string",
-            "description": "Filter by file format ('gltf', 'obj', 'fbx', etc.)",
+            "description": "Filter by file format",
             "editor": "select",
             "enum": ["", "gltf", "obj", "fbx", "blend", "dae", "3ds", "ply", "stl", "x3d"],
-            "enumTitles": ["Any", "GLTF", "OBJ", "FBX", "BLEND", "DAE", "3DS", "PLY", "STL", "X3D"],
+            "enumTitles": ["Any", "GLTF/GLB", "OBJ", "FBX", "Blender", "DAE", "3DS", "PLY", "STL", "X3D"],
             "default": ""
         },
         "license": {
             "title": "License",
             "type": "string",
-            "description": "Filter by license type (e.g., 'CC-BY', 'CC0')",
+            "description": "Filter by license type",
             "editor": "select",
             "enum": ["", "CC0", "CC-BY", "CC-BY-SA", "CC-BY-ND", "CC-BY-NC", "CC-BY-NC-SA", "CC-BY-NC-ND"],
-            "enumTitles": ["Any", "CC0", "CC-BY", "CC-BY-SA", "CC-BY-ND", "CC-BY-NC", "CC-BY-NC-SA", "CC-BY-NC-ND"],
+            "enumTitles": ["Any", "CC0 (Public Domain)", "CC-BY", "CC-BY-SA", "CC-BY-ND", "CC-BY-NC", "CC-BY-NC-SA", "CC-BY-NC-ND"],
             "default": ""
         },
-        "max_uv_layer_count": {
-            "title": "Max UV Layer Count",
+        "min_face_count": {
+            "title": "Min Face Count",
             "type": "integer",
-            "description": "Restrict models to those with ≤ N UV layers",
+            "description": "Minimum polygon faces",
             "editor": "number"
         },
-        "available_archive_type": {
-            "title": "Available Archive Type",
+        "max_face_count": {
+            "title": "Max Face Count",
+            "type": "integer",
+            "description": "Maximum polygon faces (e.g., 10000 for low-poly)",
+            "editor": "number"
+        },
+        "sort_by": {
+            "title": "Sort By",
             "type": "string",
-            "description": "Filter by archive type ('zip', 'blend', 'source', etc.)",
+            "description": "Sort results",
             "editor": "select",
-            "enum": ["", "zip", "blend", "source"],
-            "enumTitles": ["Any", "ZIP", "BLEND", "Source"],
+            "enum": ["", "likes", "views", "publishedAt", "recent", "relevance"],
+            "enumTitles": ["Default", "Most Liked", "Most Viewed", "Newest First", "Recent", "Most Relevant"],
             "default": ""
         },
-        "archives_max_size": {
-            "title": "Archives Max Size",
+        "date": {
+            "title": "Date Filter (Days)",
             "type": "integer",
-            "description": "Maximum archive size in bytes (e.g., 50000000 = 50MB)",
+            "description": "Limit to models from last X days (7=this week, 30=this month)",
             "editor": "number"
-        },
-        "archives_max_face_count": {
-            "title": "Archives Max Face Count",
-            "type": "integer",
-            "description": "Max number of faces in downloadable archive",
-            "editor": "number"
-        },
-        "archives_max_vertex_count": {
-            "title": "Archives Max Vertex Count",
-            "type": "integer",
-            "description": "Max number of vertices in downloadable archive",
-            "editor": "number"
-        },
-        "archives_max_texture_count": {
-            "title": "Archives Max Texture Count",
-            "type": "integer",
-            "description": "Maximum allowed textures in archive",
-            "editor": "number"
-        },
-        "archives_texture_max_resolution": {
-            "title": "Archives Texture Max Resolution",
-            "type": "integer",
-            "description": "Maximum allowed texture resolution (e.g., 4096)",
-            "editor": "number"
-        },
-        "archives_flavours": {
-            "title": "Archives Flavours",
-            "type": "boolean",
-            "description": "true = return all texture resolutions, false = only highest",
-            "editor": "checkbox",
-            "default": false
         }
     },
     "required": []
