@@ -151,7 +151,7 @@ Result: q="cyberpunk sports car", tags=["cyberpunk", "low-poly", "game-ready", "
 ## OUTPUT FORMAT (JSON ONLY)
 ---------------------------------------------------
 
-{
+{{
   "q": "concise search query",           // 2-5 words, REQUIRED
   "tags": ["tag1", "tag2"],              // 2-6 slugified tags
   "categories": ["category-slug"],        // ONLY if 100% confident, else omit
@@ -163,7 +163,7 @@ Result: q="cyberpunk sports car", tags=["cyberpunk", "low-poly", "game-ready", "
   "file_format": null,                    // gltf, fbx, blend, obj
   "max_face_count": null,                 // integer if poly limit mentioned
   "sort_by": null                         // likes, views, recent
-}
+}}
 
 ---------------------------------------------------
 ## EXAMPLES
