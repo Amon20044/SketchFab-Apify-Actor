@@ -3,9 +3,11 @@
     "fields": {},
     "views": {
         "overview": {
-            "title": "Overview",
+            "title": "3D Models",
+            "description": "Sketchfab 3D model search results",
             "transformation": {
-                "fields": ["uid", "name", "user", "viewerUrl", "publishedAt", "likeCount", "viewCount", "isDownloadable", "license"]
+                "fields": ["uid", "name", "user", "viewerUrl", "publishedAt", "likeCount", "viewCount", "isDownloadable", "license"],
+                "omit": ["_metadata"]
             },
             "display": {
                 "component": "table",
@@ -23,27 +25,64 @@
                         "format": "object"
                     },
                     "viewerUrl": {
-                        "label": "Viewer URL",
+                        "label": "View Model",
                         "format": "link"
                     },
                     "publishedAt": {
-                        "label": "Published At",
+                        "label": "Published",
                         "format": "date"
                     },
                     "likeCount": {
-                        "label": "Likes",
+                        "label": "❤️ Likes",
                         "format": "number"
                     },
                     "viewCount": {
-                        "label": "Views",
+                        "label": "👁️ Views",
                         "format": "number"
                     },
                     "isDownloadable": {
-                        "label": "Downloadable",
+                        "label": "⬇️ Download",
                         "format": "boolean"
                     },
                     "license": {
                         "label": "License",
+                        "format": "text"
+                    }
+                }
+            }
+        },
+        "metadata": {
+            "title": "Search Metadata",
+            "description": "AI processing and search parameter information",
+            "transformation": {
+                "fields": ["_metadata", "ai_powered", "original_query", "search_params", "result_count", "error"],
+                "limit": 1
+            },
+            "display": {
+                "component": "table",
+                "properties": {
+                    "_metadata": {
+                        "label": "Type",
+                        "format": "boolean"
+                    },
+                    "ai_powered": {
+                        "label": "🤖 AI Mode",
+                        "format": "boolean"
+                    },
+                    "original_query": {
+                        "label": "Query",
+                        "format": "text"
+                    },
+                    "search_params": {
+                        "label": "Parameters",
+                        "format": "object"
+                    },
+                    "result_count": {
+                        "label": "Results",
+                        "format": "number"
+                    },
+                    "error": {
+                        "label": "Error",
                         "format": "text"
                     }
                 }

@@ -1,11 +1,22 @@
 {
     "actorOutputSchemaVersion": 1,
-    "title": "Output schema",
+    "title": "Sketchfab Model Search Output",
+    "description": "AI-powered 3D model search results from Sketchfab",
     "properties": {
-        "overview": {
+        "models": {
             "type": "string",
-            "title": "Overview",
+            "title": "3D Models",
             "template": "{{links.apiDefaultDatasetUrl}}/items?view=overview"
+        },
+        "metadata": {
+            "type": "string",
+            "title": "Search Metadata",
+            "template": "{{links.apiDefaultDatasetUrl}}/items?view=metadata"
+        },
+        "fullDataset": {
+            "type": "string",
+            "title": "Full Dataset",
+            "template": "{{links.apiDefaultDatasetUrl}}/items"
         }
     }
 }

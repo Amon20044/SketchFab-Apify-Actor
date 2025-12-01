@@ -3,10 +3,31 @@
     "type": "object",
     "schemaVersion": 1,
     "properties": {
+        "useAI": {
+            "title": "🤖 Enable AI Mode",
+            "type": "boolean",
+            "description": "Enable AI-powered natural language search using LangGraph + Google Gemini. When true, use 'naturalQuery' field. When false, use manual filters below.",
+            "editor": "checkbox",
+            "default": false
+        },
+        "naturalQuery": {
+            "title": "Natural Language Query",
+            "type": "string",
+            "description": "Describe what you're looking for in plain English (e.g., 'low poly game-ready cars under 10k faces with PBR textures'). Only used when 'Enable AI Mode' is checked.",
+            "editor": "textarea",
+            "default": ""
+        },
+        "googleApiKey": {
+            "title": "Google API Key",
+            "type": "string",
+            "description": "Your Google Gemini API key for AI processing. Get one at https://aistudio.google.com/apikey. Can also be set as GOOGLE_API_KEY environment variable.",
+            "editor": "textfield",
+            "isSecret": true
+        },
         "q": {
             "title": "Query Keywords",
             "type": "string",
-            "description": "Space-separated keywords (e.g., 'car vehicle 3d')",
+            "description": "Space-separated keywords (e.g., 'car vehicle 3d'). Used in manual mode.",
             "editor": "textfield",
             "default": ""
         },

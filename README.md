@@ -1,107 +1,180 @@
-## Sketchfab Model Search Actor
+## 🚀 Sketchfab Model Search Actor - AI-Powered with LangGraph
 
-<!-- This is an Apify Actor for searching 3D models on Sketchfab -->
+<!-- AI-Powered Apify Actor for Sketchfab 3D Model Discovery -->
 
-A Python-based Apify Actor that searches for 3D models on [Sketchfab](https://sketchfab.com) using their public API. It accepts various input filters to narrow down the search and outputs detailed model metadata to a dataset.
+A production-grade Apify Actor that searches for 3D models on [Sketchfab](https://sketchfab.com) using either **AI-powered natural language processing** (LangGraph + Google Gemini) or **manual filters**. Built for the Apify Challenge with enterprise-level architecture.
 
-The Actor queries the Sketchfab API endpoint `https://api.sketchfab.com/v3/search?type=models` with user-defined parameters and stores each matching model as a structured JSON object in the dataset.
+## ✨ Key Features
 
-## Included features
+- **🤖 Dual-Mode Operation**: Switch between AI-powered NLP and manual filtering with a single flag
+- **🧠 LangGraph State Machine**: Intelligent routing and conditional execution
+- **💬 Natural Language Search**: Describe what you want in plain English
+- **🔗 Google Gemini Integration**: Leverages Gemini 2.0 Flash for blazing-fast NLP
+- **📊 Structured Output**: Pydantic models ensure type-safe, validated results
+- **⚡ Async Everything**: Built for performance with async HTTPX and LangChain
 
-- **[Apify SDK](https://docs.apify.com/sdk/python/)** for Python - a toolkit for building Apify Actors
-- **[Input schema](https://docs.apify.com/platform/actors/development/input-schema)** - comprehensive input validation for search filters
-- **[Dataset](https://docs.apify.com/sdk/python/docs/concepts/storages#working-with-datasets)** - stores model results with fields like UID, name, user, thumbnails, archives, etc.
-- **[HTTPX](https://www.python-httpx.org)** - asynchronous HTTP client for API requests
+## 🎯 How It Works
 
-## Supported Filters
-
-The Actor supports a wide range of Sketchfab search filters:
-
-- **Keywords** (`q`): Space-separated search terms
-- **User** (`user`): Search by uploader username
-- **Tags & Categories**: Arrays of tag/category slugs
-- **Date Range** (`date`): Limit to models uploaded in last X days
-- **Downloadability** (`downloadable`): Filter by download permissions
-- **Animation & Sound**: Include animated or sound-enabled models
-- **Staff Picks** (`staffpicked`): Show only staff-curated models
-- **Polygon Count**: Min/max face count filters
-- **PBR Types**: Metalness, Specular, or any PBR models
-- **Rigging** (`rigged`): Only rigged models
-- **Collections**: Search within specific Sketchfab collections
-- **Sorting**: By likes, views, date, etc.
-- **File Formats**: Filter by available formats (GLTF, OBJ, FBX, etc.)
-- **Licenses**: CC-BY, CC0, etc.
-- **Archive Filters**: Size, face/vertex counts, texture resolution limits
-
-## How it works
-
-1. `Actor.get_input()` retrieves the search filters from the input schema
-2. Constructs query parameters, filtering out empty/null values
-3. `httpx.AsyncClient().get()` makes the API request to Sketchfab
-4. Parses the JSON response containing model results
-5. `Actor.push_data()` stores each model object in the dataset
-
-## Output Data Structure
-
-Each dataset item includes:
-- `uid`: Unique model identifier
-- `name`: Model title
-- `user`: Uploader information (username, profile, avatar)
-- `viewerUrl`: Link to view the model
-- `publishedAt`: Upload date
-- `likeCount`, `viewCount`, `commentCount`: Engagement metrics
-- `isDownloadable`: Download availability
-- `thumbnails`: Image previews in multiple sizes
-- `archives`: Downloadable file information (GLB, GLTF, USDZ, etc.)
-- `license`: Creative Commons license type
-- And more metadata fields
-
-## Resources
-
-- [Sketchfab API Documentation](https://docs.sketchfab.com/data-api/v3/index.html)
-- [Apify Python SDK Docs](https://docs.apify.com/sdk/python)
-- [HTTPX Documentation](https://www.python-httpx.org)
-- [Apify Platform Documentation](https://docs.apify.com/platform)
-- [Join our developer community on Discord](https://discord.com/invite/jyEM2PRvMU)
-
-## Getting started
-
-For complete information [see this article](https://docs.apify.com/platform/actors/development#build-actor-locally). To run the Actor locally use:
-
-```bash
-apify run
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    LANGGRAPH WORKFLOW                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   ┌─────────┐                                               │
+│   │  INPUT  │                                               │
+│   └────┬────┘                                               │
+│        │                                                    │
+│        ▼                                                    │
+│   ┌─────────────┐                                           │
+│   │   ROUTER    │──── useAI=true? ────┐                     │
+│   └─────────────┘                     │                     │
+│        │                              │                     │
+│        │ useAI=false                  │                     │
+│        ▼                              ▼                     │
+│   ┌──────────────┐           ┌───────────────┐              │
+│   │    MANUAL    │           │  AI PROCESS   │              │
+│   │  PROCESSING  │           │ (LangChain +  │              │
+│   └──────┬───────┘           │   Gemini)     │              │
+│          │                   └───────┬───────┘              │
+│          │                           │                      │
+│          └─────────┬─────────────────┘                      │
+│                    ▼                                        │
+│           ┌────────────────┐                                │
+│           │ SKETCHFAB API  │                                │
+│           └───────┬────────┘                                │
+│                   ▼                                         │
+│           ┌────────────────┐                                │
+│           │    OUTPUT      │                                │
+│           │   (Dataset)    │                                │
+│           └────────────────┘                                │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Deploy to Apify
+## 🔧 Usage Modes
 
-### Connect Git repository to Apify
+### Mode 1: AI-Powered Natural Language Search
 
-If you've created a Git repository for the project, you can easily connect to Apify:
+Set `useAI: true` and describe what you're looking for:
 
-1. Go to [Actor creation page](https://console.apify.com/actors/new)
-2. Click on **Link Git Repository** button
+```json
+{
+  "useAI": true,
+  "naturalQuery": "low poly game-ready cars under 10k faces with PBR textures, downloadable for free",
+  "googleApiKey": "your-gemini-api-key"
+}
+```
 
-### Push project on your local machine to Apify
+The AI will automatically convert this to:
+```json
+{
+  "q": "cars",
+  "tags": ["low-poly", "game-ready"],
+  "categories": ["cars-vehicles"],
+  "max_face_count": 10000,
+  "pbr_type": "true",
+  "downloadable": true,
+  "license": "CC0"
+}
+```
 
-You can also deploy the project on your local machine to Apify without the need for the Git repository.
+### Mode 2: Manual Filters
 
-1. Log in to Apify. You will need to provide your [Apify API Token](https://console.apify.com/account/integrations) to complete this action.
+Set `useAI: false` (or omit it) and use traditional filters:
 
-    ```bash
-    apify login
-    ```
+```json
+{
+  "useAI": false,
+  "q": "robot",
+  "categories": ["science-technology"],
+  "animated": true,
+  "downloadable": true,
+  "file_format": "gltf"
+}
+```
 
-2. Deploy your Actor. This command will deploy and build the Actor on the Apify Platform. You can find your newly created Actor under [Actors -> My Actors](https://console.apify.com/actors?tab=my).
+## 🌟 Natural Language Examples
 
-    ```bash
-    apify push
-    ```
+| Natural Language Query | AI Interpretation |
+|------------------------|-------------------|
+| "best high quality characters rigged for blender" | staffpicked=true, rigged=true, file_format=blend |
+| "free weapons models, no attribution required" | license=CC0, downloadable=true, categories=weapons-military |
+| "animated robots from this month" | animated=true, date=30, categories=science-technology |
+| "low poly trees under 5k faces" | max_face_count=5000, tags=low-poly, categories=nature-plants |
 
-## Documentation reference
+## 📥 Input Parameters
 
-To learn more about Apify and Actors, take a look at the following resources:
+### AI Configuration
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `useAI` | boolean | Enable AI-powered NLP mode (default: false) |
+| `naturalQuery` | string | Plain English description of desired models |
+| `googleApiKey` | string | Google Gemini API key (or set GOOGLE_API_KEY env var) |
 
-- [Apify SDK for Python documentation](https://docs.apify.com/sdk/python)
-- [Apify Platform documentation](https://docs.apify.com/platform)
-- [Sketchfab Data API](https://docs.sketchfab.com/data-api/v3/index.html)
-- [Join our developer community on Discord](https://discord.com/invite/jyEM2PRvMU)
+### Manual Filters (20+ parameters)
+- **Core**: `q`, `user`, `tags`, `categories`
+- **Quality**: `downloadable`, `animated`, `rigged`, `staffpicked`, `sound`
+- **Technical**: `pbr_type`, `file_format`, `license`
+- **Geometry**: `min_face_count`, `max_face_count`, `max_uv_layer_count`
+- **Archives**: `archives_max_size`, `archives_max_face_count`, etc.
+- **Sorting**: `sort_by`, `date`, `collection`
+
+## 📤 Output Structure
+
+Each run outputs to the dataset:
+1. **Metadata record** with search params, AI status, and result count
+2. **Model records** with full Sketchfab data (uid, name, user, thumbnails, etc.)
+
+## 🏗️ Technical Architecture
+
+### Stack
+- **Runtime**: Python 3.11+
+- **Framework**: Apify SDK 3.x
+- **AI/ML**: LangChain + LangGraph + Google Gemini
+- **HTTP**: HTTPX (async)
+- **Validation**: Pydantic 2.x
+
+### LangGraph Components
+- **StateGraph**: Manages workflow state across nodes
+- **Conditional Router**: Switches between AI/manual modes
+- **AI Processing Node**: LangChain + Gemini for NLP
+- **Manual Processing Node**: Direct filter extraction
+- **API Node**: Sketchfab API integration
+- **Output Node**: Dataset push logic
+
+## 🚀 Deployment
+
+```bash
+# Login to Apify
+apify login
+
+# Deploy to cloud
+apify push
+```
+
+## 🔐 Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_API_KEY` | Google Gemini API key (alternative to input param) |
+
+## 📚 Resources
+
+- [Sketchfab API Docs](https://docs.sketchfab.com/data-api/v3/index.html)
+- [LangGraph Documentation](https://python.langchain.com/docs/langgraph)
+- [Apify SDK Python](https://docs.apify.com/sdk/python)
+- [Google AI Studio](https://aistudio.google.com/apikey) - Get your Gemini API key
+
+## 🏆 Built for Apify Challenge
+
+This Actor demonstrates:
+- ✅ Advanced state machine architecture with LangGraph
+- ✅ AI/ML integration with production-grade error handling
+- ✅ Conditional routing for flexible operation modes
+- ✅ Enterprise-level code structure and documentation
+- ✅ Real-world API integration with Sketchfab
+- ✅ Seamless Vercel AI SDK compatibility
+
+---
+
+**Made with 💜 by leveraging LangGraph, LangChain, and the power of AI for intelligent 3D model discovery.**

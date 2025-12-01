@@ -1,13 +1,13 @@
 {
 	"actorSpecification": 1,
 	"name": "sketchfab-3d-model-search",
-	"title": "Sketchfab Model Search",
-	"description": "Search for 3D models on Sketchfab using various filters.",
-	"version": "0.0",
+	"title": "Sketchfab 3D Model Search - AI Powered",
+	"description": "AI-powered 3D model search on Sketchfab using LangGraph + Google Gemini. Supports natural language queries ('find low poly cars with PBR') or manual filters. Built with LangChain for intelligent NLP-to-API conversion.",
+	"version": "1.0",
 	"buildTag": "latest",
 	"meta": {
 		"templateId": "python-start",
-		"generatedBy": "GitHub Copilot"
+		"generatedBy": "Claude Opus 4.5"
 	},
 	"input": "./input_schema.json",
 	"output": "./output_schema.json",
