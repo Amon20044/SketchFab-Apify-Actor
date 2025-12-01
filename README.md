@@ -1,19 +1,66 @@
-## 🚀 Sketchfab Model Search Actor - AI-Powered with LangGraph
+## 🚀 Sketchfab Ultimate Search Actor - AI-Powered with LangGraph
 
 <!-- AI-Powered Apify Actor for Sketchfab 3D Model Discovery -->
 
-A production-grade Apify Actor that searches for 3D models on [Sketchfab](https://sketchfab.com) using either **AI-powered natural language processing** (LangGraph + Google Gemini) or **manual filters**. Built for the Apify Challenge with enterprise-level architecture.
+A production-grade Apify Actor that searches for 3D models on [Sketchfab](https://sketchfab.com) using the **ULTIMATE COMBINED STRATEGY**: Query + Tags + Categories + Pagination. Features **AI-powered natural language processing** (LangGraph + Google Gemini) that converts even long paragraphs into SEO-optimized search parameters.
 
 ## ✨ Key Features
 
-- **🤖 Dual-Mode Operation**: Switch between AI-powered NLP and manual filtering with a single flag
+- **🔥 Ultimate Search Strategy**: Combines `q` (SEO query) + `tags` + `categories` for best results
+- **🤖 AI-Powered NLP**: Long user text → concise SEO query + precise tags via Google Gemini
+- **📄 Full Pagination Support**: Cursor-based pagination with `next`/`previous` navigation
 - **🧠 LangGraph State Machine**: Intelligent routing and conditional execution
-- **💬 Natural Language Search**: Describe what you want in plain English
-- **🔗 Google Gemini Integration**: Leverages Gemini 2.0 Flash for blazing-fast NLP
+- **⚡ Smart Defaults**: `downloadable=true` by default, auto-category detection
 - **📊 Structured Output**: Pydantic models ensure type-safe, validated results
-- **⚡ Async Everything**: Built for performance with async HTTPX and LangChain
 
 ## 🎯 How It Works
+
+### The Ultimate Search Strategy
+
+```
+User Input (even long text)
+         │
+         ▼
+┌─────────────────────────────────────┐
+│  🤖 AI Processing (Gemini 2.0)      │
+│                                     │
+│  "I need a really cool futuristic   │
+│   sports car from cyberpunk with    │
+│   neon lights, low poly for Unity"  │
+│                                     │
+│         ▼ BREAKDOWN ▼               │
+│                                     │
+│  q: "cyberpunk sports car"          │
+│  tags: ["cyberpunk", "low-poly",    │
+│         "game-ready", "neon"]       │
+│  categories: ["cars-vehicles"]      │
+│  downloadable: true                 │
+└─────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────┐
+│  🔍 Sketchfab API                   │
+│                                     │
+│  GET /v3/search?type=models         │
+│    &q=cyberpunk+sports+car          │
+│    &tags=cyberpunk,low-poly,...     │
+│    &categories=cars-vehicles        │
+│    &downloadable=true               │
+│    &count=24                        │
+│    &cursor=<pagination>             │
+└─────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────┐
+│  📊 Results + Pagination Info       │
+│                                     │
+│  • 24 models per page               │
+│  • next_cursor for more results     │
+│  • previous_cursor to go back       │
+└─────────────────────────────────────┘
+```
+
+### LangGraph Workflow
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -21,7 +68,7 @@ A production-grade Apify Actor that searches for 3D models on [Sketchfab](https:
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │   ┌─────────┐                                               │
-│   │  INPUT  │                                               │
+│   │  INPUT  │ (query + pagination params)                   │
 │   └────┬────┘                                               │
 │        │                                                    │
 │        ▼                                                    │
@@ -33,48 +80,47 @@ A production-grade Apify Actor that searches for 3D models on [Sketchfab](https:
 │        ▼                              ▼                     │
 │   ┌──────────────┐           ┌───────────────┐              │
 │   │    MANUAL    │           │  AI PROCESS   │              │
-│   │  PROCESSING  │           │ (LangChain +  │              │
-│   └──────┬───────┘           │   Gemini)     │              │
-│          │                   └───────┬───────┘              │
+│   │  PROCESSING  │           │ Long text →   │              │
+│   │              │           │ SEO q + tags  │              │
+│   └──────┬───────┘           └───────┬───────┘              │
 │          │                           │                      │
 │          └─────────┬─────────────────┘                      │
 │                    ▼                                        │
 │           ┌────────────────┐                                │
-│           │ SKETCHFAB API  │                                │
+│           │ SKETCHFAB API  │ (with pagination)              │
 │           └───────┬────────┘                                │
 │                   ▼                                         │
 │           ┌────────────────┐                                │
 │           │    OUTPUT      │                                │
-│           │   (Dataset)    │                                │
+│           │ (Dataset +     │                                │
+│           │  Pagination)   │                                │
 │           └────────────────┘                                │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 🔧 Usage Modes
+## 🔧 Usage
 
 ### Mode 1: AI-Powered Natural Language Search
 
-Set `useAI: true` and describe what you're looking for:
+Set `useAI: true` and describe what you're looking for (even long descriptions work!):
 
 ```json
 {
   "useAI": true,
-  "naturalQuery": "low poly game-ready cars under 10k faces with PBR textures, downloadable for free",
-  "googleApiKey": "your-gemini-api-key"
+  "naturalQuery": "I need a really cool futuristic sports car that looks like something from cyberpunk 2077 with neon lights and maybe some damage on it, low poly would be nice for my game project in Unity",
+  "googleApiKey": "your-gemini-api-key",
+  "count": 24
 }
 ```
 
-The AI will automatically convert this to:
+The AI automatically converts this to:
 ```json
 {
-  "q": "cars",
-  "tags": ["low-poly", "game-ready"],
+  "q": "cyberpunk sports car",
+  "tags": ["cyberpunk", "low-poly", "game-ready", "neon", "futuristic"],
   "categories": ["cars-vehicles"],
-  "max_face_count": 10000,
-  "pbr_type": "true",
-  "downloadable": true,
-  "license": "CC0"
+  "downloadable": true
 }
 ```
 
@@ -85,68 +131,173 @@ Set `useAI: false` (or omit it) and use traditional filters:
 ```json
 {
   "useAI": false,
-  "q": "robot",
+  "q": "robot warrior",
+  "tags": ["sci-fi", "mech"],
   "categories": ["science-technology"],
   "animated": true,
   "downloadable": true,
-  "file_format": "gltf"
+  "count": 24
+}
+```
+
+### Pagination: Getting More Results
+
+Use the `cursor` parameter to navigate through pages:
+
+```json
+{
+  "useAI": false,
+  "q": "cars",
+  "cursor": "cD0yNA==",
+  "count": 24
+}
+```
+
+The response includes pagination info:
+```json
+{
+  "_metadata": true,
+  "pagination": {
+    "has_next": true,
+    "has_previous": true,
+    "next_cursor": "cD00OA==",
+    "previous_cursor": null,
+    "next_url": "https://api.sketchfab.com/v3/search?count=24&cursor=cD00OA==&q=cars&type=models",
+    "previous_url": "https://api.sketchfab.com/v3/search?count=24&q=cars&type=models"
+  }
 }
 ```
 
 ## 🌟 Natural Language Examples
 
-| Natural Language Query | AI Interpretation |
-|------------------------|-------------------|
-| "best high quality characters rigged for blender" | staffpicked=true, rigged=true, file_format=blend |
-| "free weapons models, no attribution required" | license=CC0, downloadable=true, categories=weapons-military |
-| "animated robots from this month" | animated=true, date=30, categories=science-technology |
-| "low poly trees under 5k faces" | max_face_count=5000, tags=low-poly, categories=nature-plants |
+| Natural Language Query | AI Generates |
+|------------------------|--------------|
+| "low poly car for my mobile game, something cartoony" | `q: "cartoon car"`, `tags: ["low-poly", "cartoon", "game-ready"]` |
+| "realistic human character with rig for blender, CC0" | `q: "realistic human character"`, `tags: ["realistic", "rigged"]`, `rigged: true`, `license: "CC0"` |
+| "best high quality medieval fantasy weapons" | `q: "medieval fantasy weapon"`, `tags: ["medieval", "fantasy", "detailed"]`, `staffpicked: true` |
+| "sci fi robot mech warrior" | `q: "sci-fi mech robot"`, `tags: ["sci-fi", "mech", "robot"]` |
+| "tree" | `q: "tree"`, `tags: ["tree", "nature"]`, `categories: ["nature-plants"]` |
 
 ## 📥 Input Parameters
 
 ### AI Configuration
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `useAI` | boolean | `false` | Enable AI-powered NLP mode |
+| `naturalQuery` | string | - | Plain English description (supports long text!) |
+| `googleApiKey` | string | - | Google Gemini API key (or set `GOOGLE_API_KEY` env var) |
+
+### Pagination
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `count` | integer | `24` | Number of results per page (max 24) |
+| `cursor` | string | - | Cursor for pagination (from previous response) |
+
+### Search Filters
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `useAI` | boolean | Enable AI-powered NLP mode (default: false) |
-| `naturalQuery` | string | Plain English description of desired models |
-| `googleApiKey` | string | Google Gemini API key (or set GOOGLE_API_KEY env var) |
+| `q` | string | Search query (SEO-optimized, 2-5 words recommended) |
+| `tags` | array | Tag slugs (e.g., `["low-poly", "game-ready"]`) |
+| `categories` | array | Category slugs (e.g., `["cars-vehicles"]`) |
 
-### Manual Filters (20+ parameters)
-- **Core**: `q`, `user`, `tags`, `categories`
-- **Quality**: `downloadable`, `animated`, `rigged`, `staffpicked`, `sound`
-- **Technical**: `pbr_type`, `file_format`, `license`
-- **Geometry**: `min_face_count`, `max_face_count`, `max_uv_layer_count`
-- **Archives**: `archives_max_size`, `archives_max_face_count`, etc.
-- **Sorting**: `sort_by`, `date`, `collection`
+### Quality Filters
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `downloadable` | boolean | `true` | Only downloadable models |
+| `animated` | boolean | - | Only animated models |
+| `rigged` | boolean | - | Only rigged models |
+| `staffpicked` | boolean | - | Staff-picked only |
+| `sound` | boolean | - | Models with sound |
+
+### Technical Filters
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `pbr_type` | string | PBR workflow (`metalness`, `specular`, `true`) |
+| `file_format` | string | File format (`gltf`, `fbx`, `blend`, `obj`) |
+| `license` | string | License (`CC0`, `CC-BY`, `CC-BY-NC`, etc.) |
+| `min_face_count` | integer | Minimum polygon faces |
+| `max_face_count` | integer | Maximum polygon faces |
+| `sort_by` | string | Sort by (`likes`, `views`, `recent`) |
+| `date` | integer | Models from last X days |
+
+### Available Categories
+```
+animals-pets, architecture, art-abstract, cars-vehicles,
+characters-creatures, cultural-heritage-history, electronics-gadgets,
+fashion-style, food-drink, furniture-home, music, nature-plants,
+news-politics, people, places-travel, science-technology,
+sports-fitness, weapons-military
+```
 
 ## 📤 Output Structure
 
 Each run outputs to the dataset:
-1. **Metadata record** with search params, AI status, and result count
-2. **Model records** with full Sketchfab data (uid, name, user, thumbnails, etc.)
+
+### 1. Metadata Record
+```json
+{
+  "_metadata": true,
+  "search_params": {
+    "q": "cyberpunk sports car",
+    "tags": ["cyberpunk", "low-poly"],
+    "categories": ["cars-vehicles"],
+    "downloadable": true
+  },
+  "ai_powered": true,
+  "original_query": "I need a futuristic sports car...",
+  "generated_q": "cyberpunk sports car",
+  "generated_tags": ["cyberpunk", "low-poly", "game-ready"],
+  "result_count": 24,
+  "pagination": {
+    "has_next": true,
+    "has_previous": false,
+    "next_cursor": "cD0yNA==",
+    "next_url": "https://api.sketchfab.com/v3/search?..."
+  }
+}
+```
+
+### 2. Model Records
+```json
+{
+  "uid": "abc123...",
+  "name": "Cyberpunk Car",
+  "user": { "username": "artist123", "displayName": "Artist" },
+  "thumbnails": { "images": [...] },
+  "viewerUrl": "https://sketchfab.com/3d-models/...",
+  "isDownloadable": true,
+  "faceCount": 5000,
+  "license": { "slug": "cc-by-4.0" }
+}
+```
 
 ## 🏗️ Technical Architecture
 
 ### Stack
 - **Runtime**: Python 3.11+
 - **Framework**: Apify SDK 3.x
-- **AI/ML**: LangChain + LangGraph + Google Gemini
+- **AI/ML**: LangChain + LangGraph + Google Gemini 2.0 Flash
 - **HTTP**: HTTPX (async)
 - **Validation**: Pydantic 2.x
 
-### LangGraph Components
-- **StateGraph**: Manages workflow state across nodes
-- **Conditional Router**: Switches between AI/manual modes
-- **AI Processing Node**: LangChain + Gemini for NLP
-- **Manual Processing Node**: Direct filter extraction
-- **API Node**: Sketchfab API integration
-- **Output Node**: Dataset push logic
+### Key Components
+| Component | Purpose |
+|-----------|---------|
+| `SketchfabSearchParams` | Pydantic model for structured output |
+| `GraphState` | LangGraph state with pagination support |
+| `SEARCH_SYSTEM_PROMPT` | AI prompt for SEO-optimized search generation |
+| `ai_processing_node` | Converts long text → q + tags + categories |
+| `sketchfab_api_node` | API call with cursor pagination |
+| `extract_pagination_info` | Parses next/previous cursors |
 
 ## 🚀 Deployment
 
 ```bash
 # Login to Apify
 apify login
+
+# Run locally
+apify run
 
 # Deploy to cloud
 apify push
@@ -168,13 +319,13 @@ apify push
 ## 🏆 Built for Apify Challenge
 
 This Actor demonstrates:
-- ✅ Advanced state machine architecture with LangGraph
-- ✅ AI/ML integration with production-grade error handling
-- ✅ Conditional routing for flexible operation modes
-- ✅ Enterprise-level code structure and documentation
-- ✅ Real-world API integration with Sketchfab
-- ✅ Seamless Vercel AI SDK compatibility
+- ✅ **Ultimate Search Strategy**: q + tags + categories combined
+- ✅ **AI-Powered SEO**: Long text → optimized search params
+- ✅ **Full Pagination**: Cursor-based next/previous navigation
+- ✅ **LangGraph Architecture**: Intelligent state machine routing
+- ✅ **Smart Defaults**: downloadable=true, auto-category detection
+- ✅ **Production-Ready**: Error handling, fallbacks, logging
 
 ---
 
-**Made with 💜 by leveraging LangGraph, LangChain, and the power of AI for intelligent 3D model discovery.**
+**Made with 💜 for intelligent 3D model discovery. Search smarter, not harder!**
