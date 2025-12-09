@@ -249,7 +249,7 @@ async def ai_processing_node(state: GraphState) -> GraphState:
         
         # Initialize Gemini via LangChain
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash-lite",
             google_api_key=api_key,
             temperature=0.1,  # Low temp for consistent results
         )
