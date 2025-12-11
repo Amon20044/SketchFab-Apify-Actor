@@ -323,6 +323,9 @@ async def sketchfab_api_node(state: GraphState) -> GraphState:
     Actor.log.info("🔍 Executing Sketchfab API search...")
     
     try:
+        # 💰 CHARGE: Charge for search initiation (1 search event)
+        await Actor.charge(event_name='search')
+        
         # Build API params
         params = {"type": "models"}
         
@@ -369,7 +372,7 @@ async def sketchfab_api_node(state: GraphState) -> GraphState:
 
 
 async def output_node(state: GraphState) -> GraphState:
-    """Output Node - Pushes results to Apify dataset"""
+    """Output Node - Pushes results to Apify dataset with PPE charging"""
     Actor.log.info("💾 Saving results to dataset...")
     
     # Push metadata first (includes pagination info)
@@ -385,9 +388,13 @@ async def output_node(state: GraphState) -> GraphState:
         "error": state.get("error"),
     })
     
-    # Push each result
+    # Push each result and charge per item
     for result in state["results"]:
         await Actor.push_data(result)
+        # 💰 CHARGE: Charge per result item returned (PPE model)
+        await Actor.charge(event_name='result-item')
+    
+    Actor.log.info(f"💰 PPE Charged: 1 search + {len(state['results'])} result items")
     
     return state
 
